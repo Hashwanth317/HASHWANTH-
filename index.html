@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crowdsourced Civic Issue Reporter – Single‑File Prototype (with Reviews)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>.line-clamp-3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div id="root"></div>
+  <script type="text/babel">
+    const {useEffect, useMemo, useRef, useState} = React;
+    const DEPARTMENTS={Pothole:"Public Works",Streetlight:"Electrical",Garbage:"Sanitation",Water:"Water Board",Safety:"Traffic Police",Other:"General Admin"};
+    const CATEGORIES=Object.keys(DEPARTMENTS);
+    const PRIORITIES=["low","medium","high"];
+    const STATUS_FLOW=["Submitted","Acknowledged","Assigned","In Progress","Resolved"];
+    const storageKey="civic-issue-reports-v1";
+    const fakeId=()=>Math.random().toString(36).slice(2,10);
+    const loadReports=()=>{try{return JSON.parse(localStorage.getItem(storageKey)||"[]");}catch{return[]}};
+    const saveReports=(it)=>localStorage.setItem(storageKey,JSON.stringify(it));
+    const assignDepartment=(c)=>DEPARTMENTS[c]||DEPARTMENTS.Other;
+    function inferPriority(c,d){const t=`${c} ${d}`.toLowerCase();if(t.includes("accident")||t.includes("injury")||t.includes("live wire")||t.includes("overflowing"))return"high";if(t.includes("blocked")||t.includes("leak")||t.includes("night"))return"medium";return"low"}
+    const nextStatus=(s)=>STATUS_FLOW[Math.min(STATUS_FLOW.indexOf(s)+1,STATUS_FLOW.length-1)];
+    const fmtDate=(iso)=>{try{return new Date(iso).toLocaleString()}catch{return iso}};
+    const badgeColor=(p)=>p==="high"?"border-red-300 bg-red-50 text-red-700":(p==="medium"?"border-amber-300 bg-amber-50 text-amber-700":"border-emerald-300 bg-emerald-50 text-emerald-700");
+    const listeners=new Set(); const dispatchSystemEvent=(e)=>listeners.forEach(f=>f(e)); const useSystemEvents=(h)=>{useEffect(()=>{listeners.add(h);return()=>listeners.delete(h)},[h])};
+    const Ico=(p)=>React.createElement("svg",{className:p.c,viewBox:"0 0 24 24",fill:p.f||"none",stroke:"currentColor",strokeWidth:p.w||"2",strokeLinecap:"round",strokeLinejoin:"round"},p.children);
+    const CameraIcon=()=>Ico({c:"w-4 h-4",children:[React.createElement("path",{d:"M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"}),React.createElement("circle",{cx:"12",cy:"13",r:"4"})]});
+    const MapPinIcon=()=>Ico({c:"w-4 h-4",children:[React.createElement("path",{d:"M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0z"}),React.createElement("circle",{cx:"12",cy:"10",r:"3"})]});
+    const SendIcon=()=>Ico({c:"w-4 h-4",children:[React.createElement("path",{d:"m22 2-7 20-4-9-9-4Z"}),React.createElement("path",{d:"M22 2 11 13"})]});
+    const CheckIcon=()=>Ico({c:"w-5 h-5",children:[React.createElement("path",{d:"M20 6 9 17l-5-5"})]});
+    const ClockIcon=()=>Ico({c:"w-4 h-4",children:[React.createElement("circle",{cx:"12",cy:"12",r:"10"}),React.createElement("path",{d:"m12 6 0 6 4 2"})]});
+    const WrenchIcon=()=>Ico({c:"w-4 h-4",children:[React.createElement("path",{d:"M14.7 6.3a4 4 0 1 0-5.6 5.6l8.6 8.6a2 2 0 0 0 2.8-2.8l-8.6-8.6z"})]});
+    const TrashIcon=()=>Ico({c:"w-4 h-4",children:[React.createElement("polyline",{points:"3 6 5 6 21 6"}),React.createElement("path",{d:"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"}),React.createElement("path",{d:"M10 11v6M14 11v6"}),React.createElement("path",{d:"M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"})]});
+    const AlertIcon=()=>Ico({c:"w-5 h-5",children:[React.createElement("path",{d:"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"}),React.createElement("line",{x1:"12",y1:"9",x2:"12",y2:"13"}),React.createElement("line",{x1:"12",y1:"17",x2:"12.01",y2:"17"})]});
+    const BellIcon=()=>Ico({c:"w-4 h-4",children:[React.createElement("path",{d:"M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"}),React.createElement("path",{d:"M10.3 21a1.7 1.7 0 0 0 3.4 0"})]});
+    const StarIcon=({filled=false,className=''})=>Ico({c:`w-5 h-5 ${className}`,f:filled?"currentColor":"none",w:"1.5",children:[React.createElement("path",{d:"M12 17.3 6.2 20l1.1-6.5L2 8.8l6.6-1 3-6 3 6 6.6 1-4.8 4.7 1.1 6.5z"})]});
+    function useReports(){const [reports,setReports]=useState(loadReports());useEffect(()=>{saveReports(reports)},[reports]);return[reports,setReports]}
+    async function fileToDataUrl(file){return new Promise((res)=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(file)})}
+    function App(){
+      const [tab,setTab]=useState("report");
+      const [reports,setReports]=useReports();
+      const [filters,setFilters]=useState({category:"",status:"",priority:""});
+      const [userType,setUserType]=useState(""); // "public" or "government"
+      // Only show login if not selected
+      const filtered=useMemo(()=>{
+        let base = reports;
+        // If government, only show public-submitted problems (reporter.name !== "You")
+        if(userType==="government") {
+          base = base.filter(r => r.reporter?.name !== "You");
+        }
+        return base.filter(r=>{
+          if(filters.category&&r.category!==filters.category)return false;
+          if(filters.status&&r.status!==filters.status)return false;
+          if(filters.priority&&r.priority!==filters.priority)return false;
+          return true;
+        });
+      },[reports,filters,userType]);
+      if(!userType) {
+        return (
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 w-full max-w-sm text-center">
+              <h2 className="text-xl font-bold mb-4">Login</h2>
+              <p className="mb-6 text-slate-600">Select your role to continue:</p>
+              <div className="flex flex-col gap-4">
+                <button className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold" onClick={()=>setUserType("public")}>Public Login</button>
+                <button className="px-4 py-2 rounded-xl bg-blue-700 text-white font-semibold" onClick={()=>setUserType("government")}>Government Login</button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      return(
+        <div className="min-h-screen">
+          <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-slate-200">
+            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="p-2 rounded-2xl bg-slate-900 text-white"><AlertIcon/></span>
+                <h1 className="font-semibold text-lg">Crowdsourced Civic Issue Reporter</h1>
+                <span className="text-xs text-slate-500 hidden sm:inline">Prototype – single file</span>
+              </div>
+              <nav className="flex gap-1">
+                <TabButton label="Report" active={tab==="report"} onClick={()=>setTab("report")}/>
+                {userType==="public" && <TabButton label="My Reports" active={tab==="my"} onClick={()=>setTab("my")}/>} 
+                <TabButton label="Admin" active={tab==="admin"} onClick={()=>setTab("admin")}/>
+              </nav>
+              <div className="ml-4 flex items-center gap-2">
+                <span className="text-xs px-2 py-1 rounded bg-slate-200">{userType === "public" ? "Public" : "Government"}</span>
+                <button className="text-xs underline text-blue-600" onClick={()=>setUserType("")}>Logout</button>
+              </div>
+            </div>
+          </header>
+          <main className="max-w-6xl mx-auto p-4">
+            {tab==="report" && userType==="public" && <ReportForm onSubmit={(r)=>setReports([r,...reports])}/>} 
+            {tab==="my" && userType==="public" && <CitizenView reports={reports} setReports={setReports}/>} 
+            {tab==="admin" && <AdminView reports={filtered} allReports={reports} setReports={setReports} filters={filters} setFilters={setFilters}/>} 
+          </main>
+          <footer className="max-w-6xl mx-auto px-4 pb-8 text-xs text-slate-500">
+            <p>Note: Demo stores data in your browser (localStorage). Replace with APIs + DB for production; add push/SMS/email for notifications.</p>
+          </footer>
+        </div>
+      );
+    }
+    function TabButton({label,active,onClick}){return(<button onClick={onClick} className={`px-3 py-1.5 rounded-full text-sm border ${active?"bg-slate-900 text-white border-slate-900":"bg-white hover:bg-slate-100 border-slate-300"}`}>{label}</button>)}
+    function ReportForm({onSubmit}){const [category,setCategory]=useState(CATEGORIES[0]);const [description,setDescription]=useState("");const [image,setImage]=useState(null);const [coords,setCoords]=useState({lat:"",lng:""});const [address,setAddress]=useState("");const [submitting,setSubmitting]=useState(false);const fileInput=useRef();
+      function useMyLocation(){if(!navigator.geolocation){alert("Geolocation not supported");return}navigator.geolocation.getCurrentPosition((pos)=>{const {latitude,longitude}=pos.coords;setCoords({lat:latitude.toFixed(6),lng:longitude.toFixed(6)})},()=>alert("Unable to fetch location"),{enableHighAccuracy:true,timeout:8000})}
+      async function handleSubmit(e){e.preventDefault();setSubmitting(true);const photo=image?await fileToDataUrl(image):null;const createdAt=new Date().toISOString();const id=fakeId();const priority=inferPriority(category,description);const status="Submitted";const department=assignDepartment(category);const report={id,createdAt,category,description,photo,coords,address,status,priority,department,updates:[{at:createdAt,status:"Submitted",note:"Report created by citizen"}],reporter:{name:"You",phone:"",email:""},review:null};setTimeout(()=>dispatchSystemEvent({id:report.id,type:"ack"}),800);onSubmit(report);setSubmitting(false);setCategory(CATEGORIES[0]);setDescription("");setImage(null);setCoords({lat:"",lng:""});setAddress("")}
+      return(<div className="grid lg:grid-cols-3 gap-6"><div className="lg:col-span-2"><div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><h2 className="text-lg font-semibold mb-3">Report an Issue</h2><form onSubmit={handleSubmit} className="space-y-4"><div><label className="block text-sm text-slate-600 mb-1">Category</label><select value={category} onChange={(e)=>setCategory(e.target.value)} className="w-full border rounded-xl px-3 py-2">{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div><label className="block text-sm text-slate-600 mb-1">Description</label><textarea value={description} onChange={(e)=>setDescription(e.target.value)} placeholder="Describe the issue…" className="w-full border rounded-xl px-3 py-2 min-h-[100px]"/></div><div className="flex items-center gap-3"><button type="button" onClick={()=>fileInput.current?.click()} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border"><Ico c="w-4 h-4"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></Ico> Add Photo</button><input ref={fileInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e)=>setImage(e.target.files?.[0]||null)}/>{image&&<span className="text-xs text-slate-600">Selected: {image.name}</span>}</div>{image&&(<img alt="preview" src={URL.createObjectURL(image)} className="rounded-xl border max-h-56 object-cover"/>)}
+      <div className="grid sm:grid-cols-3 gap-3"><div><label className="block text-sm text-slate-600 mb-1">Latitude</label><input value={coords.lat} onChange={(e)=>setCoords(c=>({...c,lat:e.target.value}))} className="w-full border rounded-xl px-3 py-2" placeholder="e.g., 23.3441"/></div><div><label className="block text-sm text-slate-600 mb-1">Longitude</label><input value={coords.lng} onChange={(e)=>setCoords(c=>({...c,lng:e.target.value}))} className="w-full border rounded-xl px-3 py-2" placeholder="e.g., 85.3096"/></div><div className="flex items-end"><button type="button" onClick={useMyLocation} className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border"><MapPinIcon/> Use my location</button></div></div>
+      <div><label className="block text-sm text-slate-600 mb-1">Address (optional)</label><input value={address} onChange={(e)=>setAddress(e.target.value)} className="w-full border rounded-xl px-3 py-2" placeholder="Landmark / Street / Area"/></div>
+      <div className="pt-2"><button disabled={submitting} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white"><SendIcon/> Submit Report</button></div></form></div></div>
+      <div><div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><h3 className="font-semibold mb-2">How it works</h3><ol className="text-sm space-y-2 list-decimal list-inside"><li>Capture a photo and location.</li><li>Describe the issue and submit.</li><li>System auto‑routes to a department.</li><li>Track status: Acknowledged → Assigned → In Progress → Resolved.</li><li>Rate the resolution when closed.</li></ol><div className="mt-4 p-3 rounded-xl bg-amber-50 border text-amber-700 text-sm flex gap-2"><BellIcon/> This demo uses localStorage. Replace with secure APIs and add notifications for production.</div></div></div></div>)}
+    function CitizenView({reports,setReports}){const myReports=reports.filter(r=>r.reporter?.name==="You");function advance(id){setReports(prev=>prev.map(r=>r.id===id?({...r,status:nextStatus(r.status),updates:[...r.updates,{at:new Date().toISOString(),status:nextStatus(r.status),note:"Status updated (demo)"}]}):r))}function saveReview(id,rating,comment){setReports(prev=>prev.map(r=>r.id===id?({...r,review:{rating,comment,at:new Date().toISOString()}}):r))}return(<section className="space-y-3"><h2 className="text-lg font-semibold">Your submitted reports</h2><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">{myReports.length===0&&<EmptyCard message="No reports yet. Submit your first civic issue!"/>}{myReports.map(r=><ReportCard key={r.id} r={r} onAdvance={()=>advance(r.id)} onSaveReview={saveReview}/>)}</div></section>)}
+    function AdminView({reports,allReports,setReports,filters,setFilters}){const [selection,setSelection]=useState([]);function toggle(id){setSelection(sel=>sel.includes(id)?sel.filter(x=>x!==id):[...sel,id])}function bulkAdvance(){setReports(prev=>prev.map(r=>selection.includes(r.id)?({...r,status:nextStatus(r.status),updates:[...r.updates,{at:new Date().toISOString(),status:nextStatus(r.status),note:"Admin bulk advanced"}]}):r));setSelection([])}function assign(id,dept){setReports(prev=>prev.map(r=>r.id===id?({...r,department:dept,updates:[...r.updates,{at:new Date().toISOString(),status:r.status,note:`Reassigned to ${dept}`}] }):r))}
+      const stats=useMemo(()=>{const byStatus=Object.fromEntries(STATUS_FLOW.map(s=>[s,0]));const byCat=Object.fromEntries(CATEGORIES.map(c=>[c,0]));const byDept=Object.values(DEPARTMENTS).reduce((a,d)=>(a[d]=0,a),{});let ratingSum=0,ratingCount=0;allReports.forEach(r=>{byStatus[r.status]=(byStatus[r.status]||0)+1;byCat[r.category]=(byCat[r.category]||0)+1;byDept[r.department]=(byDept[r.department]||0)+1;if(r.review&&typeof r.review.rating==="number"){ratingSum+=r.review.rating;ratingCount+=1}});return{byStatus,byCat,byDept,total:allReports.length,avgRating:ratingCount?(ratingSum/ratingCount):0,ratingCount}},[allReports]);
+      return(<div className="space-y-6"><div className="grid lg:grid-cols-5 gap-4"><StatCard title="Total Reports" value={stats.total} icon={<AlertIcon/>}/><StatCard title="Submitted" value={stats.byStatus['Submitted']} icon={<ClockIcon/>}/><StatCard title="In Progress" value={stats.byStatus['In Progress']} icon={<WrenchIcon/>}/><StatCard title="Resolved" value={stats.byStatus['Resolved']} icon={<CheckIcon/>}/><div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><div className="flex items-center gap-2 text-slate-600 text-sm"><StarIcon className="text-amber-500"/> Avg Rating</div><div className="text-2xl font-semibold mt-1 flex items-baseline gap-1">{stats.avgRating.toFixed(1)}<span className="text-xs text-slate-500">({stats.ratingCount})</span></div></div></div>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><div className="flex flex-col sm:flex-row gap-3 sm:items-end sm:justify-between"><div><h3 className="font-semibold mb-1">Incoming Reports</h3><p className="text-sm text-slate-500">Filter, select, and advance status. Auto‑routing suggests department based on category. Ratings appear after resolution.</p></div><div className="flex flex-wrap gap-2"><FilterSelect label="Category" value={filters.category} onChange={(v)=>setFilters(f=>({...f,category:v}))} options={["",...CATEGORIES]}/><FilterSelect label="Status" value={filters.status} onChange={(v)=>setFilters(f=>({...f,status:v}))} options={["",...STATUS_FLOW]}/><FilterSelect label="Priority" value={filters.priority} onChange={(v)=>setFilters(f=>({...f,priority:v}))} options={["",...PRIORITIES]}/><button onClick={bulkAdvance} disabled={selection.length===0} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border"><WrenchIcon/> Advance Selected</button></div></div>
+      <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{reports.length===0&&<EmptyCard message="No matching reports. Try different filters."/>}{reports.map(r=>(<div key={r.id} className={`rounded-2xl border ${selection.includes(r.id)?"border-slate-900":"border-slate-200"}`}><div className="p-3 flex items-center justify-between"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selection.includes(r.id)} onChange={()=>toggle(r.id)}/><span className="font-medium">{r.category}</span><span className={`ml-2 text-xs px-2 py-0.5 rounded-full border ${badgeColor(r.priority)}`}>{r.priority}</span></label><span className="text-xs text-slate-500">{fmtDate(r.createdAt)}</span></div>{r.photo&&<img alt="report" src={r.photo} className="w-full h-40 object-cover"/>}<div className="p-3 space-y-2 text-sm"><p className="line-clamp-3">{r.description}</p><div className="flex items-center gap-2 text-slate-600"><MapPinIcon/> {r.coords.lat&&r.coords.lng?`${r.coords.lat}, ${r.coords.lng}`:"Location N/A"}</div><div className="flex items-center gap-2 text-slate-600"><ClockIcon/> {r.status}</div><div className="flex items-center gap-2 text-slate-600"><WrenchIcon/> Dept: {r.department}</div>{r.review&&(<div className="mt-1"><div className="text-slate-600 text-xs">Citizen rating:</div><StarsDisplay rating={r.review.rating}/>{r.review.comment&&<div className="text-xs text-slate-500 mt-1">“{r.review.comment}”</div>}</div>)}<div className="flex items-center gap-2"><label className="text-slate-600">Reassign:</label><select value={r.department} onChange={(e)=>assign(r.id,e.target.value)} className="border rounded-xl px-2 py-1">{Object.values(DEPARTMENTS).map(d=><option key={d} value={d}>{d}</option>)}</select><button onClick={()=>deleteReport(r.id,setReports)} className="ml-auto inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-xs"><TrashIcon/> Delete</button></div></div></div>))}</div></div>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><h3 className="font-semibold mb-2">Hotspots (by volume)</h3><HotspotHeatlist reports={allReports}/></div></div>)}
+    function ReportCard({r,onAdvance,onSaveReview}){const [showReview,setShowReview]=useState(false);const canReview=r.status==="Resolved";return(<div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">{r.photo&&<img alt="report" src={r.photo} className="w-full h-40 object-cover"/>}<div className="p-3 space-y-2 text-sm"><div className="flex items-center justify-between"><span className="font-medium">{r.category}</span><span className={`text-xs px-2 py-0.5 rounded-full border ${badgeColor(r.priority)}`}>{r.priority}</span></div><p className="line-clamp-3">{r.description}</p><div className="flex items-center gap-2 text-slate-600"><MapPinIcon/> {r.coords.lat&&r.coords.lng?`${r.coords.lat}, ${r.coords.lng}`:"Location N/A"}</div><div className="flex items-center gap-2 text-slate-600"><ClockIcon/> {r.status}</div><div className="text-xs text-slate-500">{fmtDate(r.createdAt)} • Dept: {r.department}</div><div className="pt-1 flex flex-wrap gap-2"><button onClick={onAdvance} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border"><WrenchIcon/> Advance status</button>{canReview&&!r.review&&(<button onClick={()=>setShowReview(v=>!v)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border">Rate Resolution</button>)}</div>{canReview&&!r.review&&showReview&&(<ReviewForm onCancel={()=>setShowReview(false)} onSave={(rating,comment)=>{onSaveReview(r.id,rating,comment);setShowReview(false)}}/>)}
+      {r.review&&(<div className="mt-2 border rounded-xl p-2"><div className="text-slate-600 text-xs mb-1">Your Review</div><StarsDisplay rating={r.review.rating}/>{r.review.comment&&<div className="text-xs text-slate-600 mt-1">“{r.review.comment}”</div>}</div>)}</div></div>)}
+    function ReviewForm({onSave,onCancel}){const [rating,setRating]=useState(0);const [hover,setHover]=useState(0);const [comment,setComment]=useState("");return(<div className="mt-2 border rounded-xl p-3 bg-slate-50"><div className="text-sm font-medium mb-2">Rate the resolution</div><div className="flex items-center gap-1 mb-2">{[1,2,3,4,5].map(n=>(<button key={n} type="button" onMouseEnter={()=>setHover(n)} onMouseLeave={()=>setHover(0)} onClick={()=>setRating(n)} className={`p-1 ${(hover||rating)>=n?'text-amber-500':'text-slate-400'}`} aria-label={`${n} star`}><StarIcon filled={(hover||rating)>=n}/></button>))}<span className="text-xs text-slate-600 ml-2">{rating?`${rating}/5`:"Select rating"}</span></div><textarea value={comment} onChange={(e)=>setComment(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Optional feedback (what was good / what to improve)"/><div className="mt-2 flex gap-2"><button disabled={!rating} onClick={()=>onSave(rating,comment.trim())} className="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-sm">Submit</button><button onClick={onCancel} className="px-3 py-1.5 rounded-xl border text-sm">Cancel</button></div></div>)}
+    function StarsDisplay({rating}){return(<div className="flex items-center gap-0.5 text-amber-500">{[1,2,3,4,5].map(n=><StarIcon key={n} filled={n<=rating}/>)}</div>)}
+    function FilterSelect({label,value,onChange,options}){return(<label className="text-sm flex items-center gap-2"><span className="text-slate-600">{label}</span><select value={value} onChange={(e)=>onChange(e.target.value)} className="border rounded-xl px-2 py-1">{options.map(o=><option key={o} value={o}>{o||"All"}</option>)}</select></label>)}
+    function StatCard({title,value,icon}){return(<div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><div className="flex items-center gap-2 text-slate-600 text-sm">{icon} {title}</div><div className="text-2xl font-semibold mt-1">{value}</div></div>)}
+    function EmptyCard({message}){return <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center text-slate-500">{message}</div>}
+    function HotspotHeatlist({reports}){const buckets={};reports.forEach(r=>{const key=(r.coords.lat&&r.coords.lng)?`${Number(r.coords.lat).toFixed(3)},${Number(r.coords.lng).toFixed(3)}`:"Unspecified";buckets[key]=(buckets[key]||0)+1});const items=Object.entries(buckets).sort((a,b)=>b[1]-a[1]).slice(0,8);return(<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">{items.map(([k,v])=>(<div key={k} className="border rounded-xl p-3 flex items-center justify-between"><div className="flex items-center gap-2 text-slate-600"><MapPinIcon/> {k}</div><div className="text-slate-900 font-semibold">{v}</div></div>))}</div>)}
+    function deleteReport(id,setReports){setReports(prev=>prev.filter(r=>r.id!==id))}
+    const root=ReactDOM.createRoot(document.getElementById("root")); root.render(<App/>);
+  </script>
+</body>
+</html>

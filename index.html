@@ -49,10 +49,7 @@
       // Only show login if not selected
       const filtered=useMemo(()=>{
         let base = reports;
-        // If government, only show public-submitted problems (reporter.name !== "You")
-        if(userType==="government") {
-          base = base.filter(r => r.reporter?.name !== "You");
-        }
+        // Government should see all reports (no reporter-name filtering)
         return base.filter(r=>{
           if(filters.category&&r.category!==filters.category)return false;
           if(filters.status&&r.status!==filters.status)return false;
@@ -60,15 +57,22 @@
           return true;
         });
       },[reports,filters,userType]);
+      // Counts per category (used for government summary)
+      const categoryCounts = useMemo(()=>{
+        const out = Object.fromEntries(CATEGORIES.map(c=>[c,0]));
+        filtered.forEach(r=>{ if(r && r.category){ out[r.category] = (out[r.category]||0) + 1 }});
+        return out;
+      },[filtered]);
       if(!userType) {
+        const bgUrl = `url("./background.png")`;
         return (
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 w-full max-w-sm text-center">
-              <h2 className="text-xl font-bold mb-4">Login</h2>
-              <p className="mb-6 text-slate-600">Select your role to continue:</p>
+          <div className="min-h-screen flex items-center justify-center" style={{backgroundImage: bgUrl, backgroundSize:'cover', backgroundPosition:'center'}}>
+            <div className="rounded-2xl p-8 w-full max-w-sm text-center backdrop-blur text-white/95 bg-transparent">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-3">Login</h2>
+              <p className="mb-6 text-lg text-white/90">Select your role to continue:</p>
               <div className="flex flex-col gap-4">
-                <button className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold" onClick={()=>setUserType("public")}>Public Login</button>
-                <button className="px-4 py-2 rounded-xl bg-blue-700 text-white font-semibold" onClick={()=>setUserType("government")}>Government Login</button>
+                <button className="px-5 py-3 rounded-xl bg-slate-900 text-white font-semibold text-lg" onClick={()=>setUserType("public")}>Public Login</button>
+                <button className="px-5 py-3 rounded-xl bg-blue-700 text-white font-semibold text-lg" onClick={()=>setUserType("government")}>Government Login</button>
               </div>
             </div>
           </div>
@@ -96,8 +100,22 @@
           </header>
           <main className="max-w-6xl mx-auto p-4">
             {tab==="report" && userType==="public" && <ReportForm onSubmit={(r)=>setReports([r,...reports])}/>} 
+            {tab==="report" && userType==="government" && (
+              <div>
+                {/* Category counts summary for government */}
+                <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                  {Object.entries(categoryCounts).map(([cat,count])=>(
+                    <div key={cat} className="bg-white/80 backdrop-blur rounded-xl p-3 text-sm text-slate-900 flex flex-col items-start">
+                      <div className="text-xs text-slate-500">{cat}</div>
+                      <div className="text-2xl font-semibold mt-1">{count}</div>
+                    </div>
+                  ))}
+                </div>
+                <AdminView reports={filtered} allReports={reports} setReports={setReports} filters={filters} setFilters={setFilters} showPriority={false}/>
+              </div>
+            )}
             {tab==="my" && userType==="public" && <CitizenView reports={reports} setReports={setReports}/>} 
-            {tab==="admin" && <AdminView reports={filtered} allReports={reports} setReports={setReports} filters={filters} setFilters={setFilters}/>} 
+            {tab==="admin" && <AdminView reports={filtered} allReports={reports} setReports={setReports} filters={filters} setFilters={setFilters} showPriority={true}/>} 
           </main>
           <footer className="max-w-6xl mx-auto px-4 pb-8 text-xs text-slate-500">
             <p>Note: Demo stores data in your browser (localStorage). Replace with APIs + DB for production; add push/SMS/email for notifications.</p>
@@ -115,11 +133,11 @@
       <div className="pt-2"><button disabled={submitting} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white"><SendIcon/> Submit Report</button></div></form></div></div>
       <div><div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><h3 className="font-semibold mb-2">How it works</h3><ol className="text-sm space-y-2 list-decimal list-inside"><li>Capture a photo and location.</li><li>Describe the issue and submit.</li><li>System auto‑routes to a department.</li><li>Track status: Acknowledged → Assigned → In Progress → Resolved.</li><li>Rate the resolution when closed.</li></ol><div className="mt-4 p-3 rounded-xl bg-amber-50 border text-amber-700 text-sm flex gap-2"><BellIcon/> This demo uses localStorage. Replace with secure APIs and add notifications for production.</div></div></div></div>)}
     function CitizenView({reports,setReports}){const myReports=reports.filter(r=>r.reporter?.name==="You");function advance(id){setReports(prev=>prev.map(r=>r.id===id?({...r,status:nextStatus(r.status),updates:[...r.updates,{at:new Date().toISOString(),status:nextStatus(r.status),note:"Status updated (demo)"}]}):r))}function saveReview(id,rating,comment){setReports(prev=>prev.map(r=>r.id===id?({...r,review:{rating,comment,at:new Date().toISOString()}}):r))}return(<section className="space-y-3"><h2 className="text-lg font-semibold">Your submitted reports</h2><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">{myReports.length===0&&<EmptyCard message="No reports yet. Submit your first civic issue!"/>}{myReports.map(r=><ReportCard key={r.id} r={r} onAdvance={()=>advance(r.id)} onSaveReview={saveReview}/>)}</div></section>)}
-    function AdminView({reports,allReports,setReports,filters,setFilters}){const [selection,setSelection]=useState([]);function toggle(id){setSelection(sel=>sel.includes(id)?sel.filter(x=>x!==id):[...sel,id])}function bulkAdvance(){setReports(prev=>prev.map(r=>selection.includes(r.id)?({...r,status:nextStatus(r.status),updates:[...r.updates,{at:new Date().toISOString(),status:nextStatus(r.status),note:"Admin bulk advanced"}]}):r));setSelection([])}function assign(id,dept){setReports(prev=>prev.map(r=>r.id===id?({...r,department:dept,updates:[...r.updates,{at:new Date().toISOString(),status:r.status,note:`Reassigned to ${dept}`}] }):r))}
+  function AdminView({reports,allReports,setReports,filters,setFilters,showPriority=true}){const [selection,setSelection]=useState([]);function toggle(id){setSelection(sel=>sel.includes(id)?sel.filter(x=>x!==id):[...sel,id])}function bulkAdvance(){setReports(prev=>prev.map(r=>selection.includes(r.id)?({...r,status:nextStatus(r.status),updates:[...r.updates,{at:new Date().toISOString(),status:nextStatus(r.status),note:"Admin bulk advanced"}]}):r));setSelection([])}function assign(id,dept){setReports(prev=>prev.map(r=>r.id===id?({...r,department:dept,updates:[...r.updates,{at:new Date().toISOString(),status:r.status,note:`Reassigned to ${dept}`}] }):r))}
       const stats=useMemo(()=>{const byStatus=Object.fromEntries(STATUS_FLOW.map(s=>[s,0]));const byCat=Object.fromEntries(CATEGORIES.map(c=>[c,0]));const byDept=Object.values(DEPARTMENTS).reduce((a,d)=>(a[d]=0,a),{});let ratingSum=0,ratingCount=0;allReports.forEach(r=>{byStatus[r.status]=(byStatus[r.status]||0)+1;byCat[r.category]=(byCat[r.category]||0)+1;byDept[r.department]=(byDept[r.department]||0)+1;if(r.review&&typeof r.review.rating==="number"){ratingSum+=r.review.rating;ratingCount+=1}});return{byStatus,byCat,byDept,total:allReports.length,avgRating:ratingCount?(ratingSum/ratingCount):0,ratingCount}},[allReports]);
       return(<div className="space-y-6"><div className="grid lg:grid-cols-5 gap-4"><StatCard title="Total Reports" value={stats.total} icon={<AlertIcon/>}/><StatCard title="Submitted" value={stats.byStatus['Submitted']} icon={<ClockIcon/>}/><StatCard title="In Progress" value={stats.byStatus['In Progress']} icon={<WrenchIcon/>}/><StatCard title="Resolved" value={stats.byStatus['Resolved']} icon={<CheckIcon/>}/><div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><div className="flex items-center gap-2 text-slate-600 text-sm"><StarIcon className="text-amber-500"/> Avg Rating</div><div className="text-2xl font-semibold mt-1 flex items-baseline gap-1">{stats.avgRating.toFixed(1)}<span className="text-xs text-slate-500">({stats.ratingCount})</span></div></div></div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><div className="flex flex-col sm:flex-row gap-3 sm:items-end sm:justify-between"><div><h3 className="font-semibold mb-1">Incoming Reports</h3><p className="text-sm text-slate-500">Filter, select, and advance status. Auto‑routing suggests department based on category. Ratings appear after resolution.</p></div><div className="flex flex-wrap gap-2"><FilterSelect label="Category" value={filters.category} onChange={(v)=>setFilters(f=>({...f,category:v}))} options={["",...CATEGORIES]}/><FilterSelect label="Status" value={filters.status} onChange={(v)=>setFilters(f=>({...f,status:v}))} options={["",...STATUS_FLOW]}/><FilterSelect label="Priority" value={filters.priority} onChange={(v)=>setFilters(f=>({...f,priority:v}))} options={["",...PRIORITIES]}/><button onClick={bulkAdvance} disabled={selection.length===0} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border"><WrenchIcon/> Advance Selected</button></div></div>
-      <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{reports.length===0&&<EmptyCard message="No matching reports. Try different filters."/>}{reports.map(r=>(<div key={r.id} className={`rounded-2xl border ${selection.includes(r.id)?"border-slate-900":"border-slate-200"}`}><div className="p-3 flex items-center justify-between"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selection.includes(r.id)} onChange={()=>toggle(r.id)}/><span className="font-medium">{r.category}</span><span className={`ml-2 text-xs px-2 py-0.5 rounded-full border ${badgeColor(r.priority)}`}>{r.priority}</span></label><span className="text-xs text-slate-500">{fmtDate(r.createdAt)}</span></div>{r.photo&&<img alt="report" src={r.photo} className="w-full h-40 object-cover"/>}<div className="p-3 space-y-2 text-sm"><p className="line-clamp-3">{r.description}</p><div className="flex items-center gap-2 text-slate-600"><MapPinIcon/> {r.coords.lat&&r.coords.lng?`${r.coords.lat}, ${r.coords.lng}`:"Location N/A"}</div><div className="flex items-center gap-2 text-slate-600"><ClockIcon/> {r.status}</div><div className="flex items-center gap-2 text-slate-600"><WrenchIcon/> Dept: {r.department}</div>{r.review&&(<div className="mt-1"><div className="text-slate-600 text-xs">Citizen rating:</div><StarsDisplay rating={r.review.rating}/>{r.review.comment&&<div className="text-xs text-slate-500 mt-1">“{r.review.comment}”</div>}</div>)}<div className="flex items-center gap-2"><label className="text-slate-600">Reassign:</label><select value={r.department} onChange={(e)=>assign(r.id,e.target.value)} className="border rounded-xl px-2 py-1">{Object.values(DEPARTMENTS).map(d=><option key={d} value={d}>{d}</option>)}</select><button onClick={()=>deleteReport(r.id,setReports)} className="ml-auto inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-xs"><TrashIcon/> Delete</button></div></div></div>))}</div></div>
+  <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{reports.length===0&&<EmptyCard message="No matching reports. Try different filters."/>}{reports.map(r=>(<div key={r.id} className={`rounded-2xl border ${selection.includes(r.id)?"border-slate-900":"border-slate-200"}`}><div className="p-3 flex items-center justify-between"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selection.includes(r.id)} onChange={()=>toggle(r.id)}/><span className="font-medium">{r.category}</span>{showPriority && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full border ${badgeColor(r.priority)}`}>{r.priority}</span>}</label><span className="text-xs text-slate-500">{fmtDate(r.createdAt)}</span></div>{r.photo&&<img alt="report" src={r.photo} className="w-full h-40 object-cover"/>}<div className="p-3 space-y-2 text-sm"><p className="line-clamp-3">{r.description}</p><div className="flex items-center gap-2 text-slate-600"><MapPinIcon/> {r.coords.lat&&r.coords.lng?`${r.coords.lat}, ${r.coords.lng}`:"Location N/A"}</div><div className="flex items-center gap-2 text-slate-600"><ClockIcon/> {r.status}</div><div className="flex items-center gap-2 text-slate-600"><WrenchIcon/> Dept: {r.department}</div>{r.review&&(<div className="mt-1"><div className="text-slate-600 text-xs">Citizen rating:</div><StarsDisplay rating={r.review.rating}/>{r.review.comment&&<div className="text-xs text-slate-500 mt-1">“{r.review.comment}”</div>}</div>)}<div className="flex items-center gap-2"><label className="text-slate-600">Reassign:</label><select value={r.department} onChange={(e)=>assign(r.id,e.target.value)} className="border rounded-xl px-2 py-1">{Object.values(DEPARTMENTS).map(d=><option key={d} value={d}>{d}</option>)}</select><button onClick={()=>deleteReport(r.id,setReports)} className="ml-auto inline-flex items-center gap-1 text-red-600 hover:text-red-700 text-xs"><TrashIcon/> Delete</button></div></div></div>))}</div></div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4"><h3 className="font-semibold mb-2">Hotspots (by volume)</h3><HotspotHeatlist reports={allReports}/></div></div>)}
     function ReportCard({r,onAdvance,onSaveReview}){const [showReview,setShowReview]=useState(false);const canReview=r.status==="Resolved";return(<div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">{r.photo&&<img alt="report" src={r.photo} className="w-full h-40 object-cover"/>}<div className="p-3 space-y-2 text-sm"><div className="flex items-center justify-between"><span className="font-medium">{r.category}</span><span className={`text-xs px-2 py-0.5 rounded-full border ${badgeColor(r.priority)}`}>{r.priority}</span></div><p className="line-clamp-3">{r.description}</p><div className="flex items-center gap-2 text-slate-600"><MapPinIcon/> {r.coords.lat&&r.coords.lng?`${r.coords.lat}, ${r.coords.lng}`:"Location N/A"}</div><div className="flex items-center gap-2 text-slate-600"><ClockIcon/> {r.status}</div><div className="text-xs text-slate-500">{fmtDate(r.createdAt)} • Dept: {r.department}</div><div className="pt-1 flex flex-wrap gap-2"><button onClick={onAdvance} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border"><WrenchIcon/> Advance status</button>{canReview&&!r.review&&(<button onClick={()=>setShowReview(v=>!v)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border">Rate Resolution</button>)}</div>{canReview&&!r.review&&showReview&&(<ReviewForm onCancel={()=>setShowReview(false)} onSave={(rating,comment)=>{onSaveReview(r.id,rating,comment);setShowReview(false)}}/>)}
       {r.review&&(<div className="mt-2 border rounded-xl p-2"><div className="text-slate-600 text-xs mb-1">Your Review</div><StarsDisplay rating={r.review.rating}/>{r.review.comment&&<div className="text-xs text-slate-600 mt-1">“{r.review.comment}”</div>}</div>)}</div></div>)}

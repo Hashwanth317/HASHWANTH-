@@ -295,7 +295,7 @@
           <div className="flex items-center justify-center">
             <label className="inline-flex flex-col items-center px-4 py-2 bg-slate-50 rounded-xl border cursor-pointer">
               <div className="text-sm text-slate-600">Click to select image</div>
-              <input type="file" accept="image/*" className="hidden" onChange={(e)=>setFile(e.target.files?.[0]||null)}/>
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e)=>setFile(e.target.files?.[0]||null)}/>
             </label>
           </div>
           {preview&&(

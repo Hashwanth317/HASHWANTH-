@@ -189,9 +189,15 @@
                 <TabButton label="Report" active={tab==="report"} onClick={()=>setTab("report")}/>
                 {userType==="public" && <TabButton label="My Reports" active={tab==="my"} onClick={()=>setTab("my")}/>} 
                 {userType === 'government' && !govProfile ? (
-                  <button title="Upload ID to access admin" className="px-3 py-1.5 rounded-full text-sm border bg-white text-slate-400 border-slate-200 cursor-not-allowed">Admin 🔒</button>
+                  <>
+                    <button title="Upload ID to access admin" className="px-3 py-1.5 rounded-full text-sm border bg-white text-slate-400 border-slate-200 cursor-not-allowed">Admin 🔒</button>
+                    <button title="Upload ID to access technicians" className="px-3 py-1.5 rounded-full text-sm border bg-white text-slate-400 border-slate-200 cursor-not-allowed">Technicians 🔒</button>
+                  </>
                 ) : (
-                  <TabButton label="Admin" active={tab==="admin"} onClick={()=>setTab("admin")}/>
+                  <>
+                    <TabButton label="Admin" active={tab==="admin"} onClick={()=>setTab("admin")}/>
+                    <TabButton label="Technicians" active={tab==="technicians"} onClick={()=>setTab("technicians")}/>
+                  </>
                 )}
               </nav>
               <div className="ml-4 flex items-center gap-2">
@@ -267,6 +273,48 @@
               <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl border text-slate-600">Access restricted: upload government ID to access Admin features.</div>
             ) : (
               <AdminView reports={filtered} allReports={reports} setReports={setReports} filters={filters} setFilters={setFilters} showPriority={true}/>
+            ))}
+            {tab==="technicians" && (userType==='government' && !govProfile ? (
+              <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl border text-slate-600">Access restricted: upload government ID to access Technicians features.</div>
+            ) : (
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                  <h3 className="font-semibold mb-3">Available Technicians</h3>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.values(DEPARTMENTS).map(dept => (
+                      <div key={dept} className="border rounded-xl p-4">
+                        <div className="text-lg font-semibold mb-2">{dept}</div>
+                        <div className="text-sm text-slate-600 mb-3">Technical Team</div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <WrenchIcon/>
+                          <span>3 technicians available</span>
+                        </div>
+                        <button className="mt-3 w-full px-3 py-2 rounded-xl bg-slate-900 text-white text-sm">Assign Tasks</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                  <h3 className="font-semibold mb-3">Work Schedule</h3>
+                  <div className="text-sm text-slate-500 mb-4">View and manage technician schedules and assignments</div>
+                  <div className="space-y-3">
+                    {filtered.filter(r => r.status === "Assigned" || r.status === "In Progress").map(r => (
+                      <div key={r.id} className="border rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">{r.category}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${badgeColor(r.priority)}`}>{r.priority}</span>
+                        </div>
+                        <div className="text-sm text-slate-600">{r.department}</div>
+                        <div className="text-xs text-slate-500 mt-1">Status: {r.status}</div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <button className="px-3 py-1.5 rounded-xl border text-sm">View Details</button>
+                          <button className="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-sm">Update Status</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             ))} 
           </main>
           <footer className="max-w-6xl mx-auto px-4 pb-8 text-xs text-slate-500">

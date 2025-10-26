@@ -457,10 +457,13 @@
                         <h3 className="text-lg font-semibold">Your Assigned Tasks</h3>
                         <p className="text-sm text-slate-500">Manage and update your assigned work</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-slate-600">Logged in as:</span>
-                        <span className="px-3 py-1 rounded-lg bg-amber-100 text-amber-700 font-medium">{techProfile?.name}</span>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-600">Logged in as:</span>
+                      <span className="px-3 py-1 rounded-lg bg-amber-100 text-amber-700">
+                        <span className="font-medium">{techProfile?.name}</span>
+                        <span className="text-xs ml-1">({techProfile?.id})</span>
+                      </span>
+                    </div>
                     </div>
                   
                     <div className="space-y-4">
@@ -486,7 +489,7 @@
                                     updates: [...r.updates, {
                                       at: now,
                                       status: "In Progress",
-                                      note: `Work started by technician ${techProfile.name}`
+                                      note: `Work started by technician ${techProfile.name} (${techProfile.id})`
                                     }]
                                   } : r));
                                 }}
@@ -505,14 +508,14 @@
                                     updates: [...r.updates, {
                                       at: now,
                                       status: "Pending Review",
-                                      note: `Work completed by technician ${techProfile.name}, awaiting review`
+                                      note: `Work completed by technician ${techProfile.name} (${techProfile.id}), awaiting review`
                                     }]
                                   } : r));
                                   // Notify government about completion
                                   pushNotification({
                                     id: Date.now(),
                                     reportId: task.id,
-                                    message: `Technician ${techProfile.name} has completed work on ${task.category} task. Please review and mark as resolved.`,
+                                    message: `Technician ${techProfile.name} (${techProfile.id}) has completed work on ${task.category} task. Please review and mark as resolved.`,
                                     at: now,
                                     type: "government"
                                   });
@@ -564,7 +567,10 @@
                               <div key={tech.id} className={`flex items-center justify-between border-2 rounded-lg p-3 ${tech.available ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'} transition-all duration-300`}>
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2">
-                                    <div className="font-medium">{tech.name}</div>
+                                    <div>
+                                      <span className="font-medium">{tech.name}</span>
+                                      <span className="text-xs text-slate-500 ml-1">({tech.id})</span>
+                                    </div>
                                     <div className={`text-xs px-2 py-0.5 rounded-full ${tech.available ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
                                       {tech.available ? 'Free' : 'Engaged'}
                                     </div>
